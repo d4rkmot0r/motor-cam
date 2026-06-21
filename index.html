@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Motor-Cam — Wi-Fi Security Camera System</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="toast" class="toast"></div>
+
+    <!-- HOME SCREEN -->
+    <div id="home-screen">
+        <div>
+            <div class="logo-title">Motor-Cam</div>
+            <div class="logo-subtitle">Wi-Fi Security Camera System</div>
+        </div>
+        <div class="mode-buttons">
+            <button class="mode-btn" onclick="MotorCam.enterServerMode()">
+                <span class="mode-icon">📡</span><span>Server Mode</span>
+            </button>
+            <button class="mode-btn" onclick="MotorCam.enterClientMode()">
+                <span class="mode-icon">📺</span><span>Client Mode</span>
+            </button>
+        </div>
+        <div class="home-hint">
+            <strong>Server:</strong> Turn this device into a security camera<br>
+            <strong>Client:</strong> Monitor a remote camera
+        </div>
+    </div>
+
+    <!-- SERVER SCREEN -->
+    <div id="server-screen">
+        <div class="dashboard-header">
+            <button class="back-btn" onclick="MotorCam.goHome()">◀ Back</button>
+            <h2>Motor-Cam</h2>
+            <span class="mode-badge server">Server</span>
+        </div>
+        <div class="dashboard-body">
+            <div class="server-grid">
+
+                <!-- Video Preview -->
+                <div class="neon-panel video-section">
+                    <div class="neon-panel-header"><span class="icon">🎥</span><h3>Live Preview</h3></div>
+                    <div class="video-container" id="serverVideoContainer">
+                        <div id="recIndicator" class="rec-indicator rec-hidden">
+                            <span class="rec-dot"></span><span>REC</span><span id="recTimer">00:00</span>
+                        </div>
+                        <div class="timestamp-overlay" id="timestampOverlay">--</div>
+                        <video id="cameraPreview" autoplay muted playsinline></video>
+                    </div>
+                    <canvas id="motionCanvas"></canvas>
+                </div>
+
+                <!-- System Status -->
+                <div class="neon-panel">
+                    <div class="neon-panel-header"><span class="icon">📊</span><h3>System Status</h3></div>
+                    <div class="status-row"><span class="status-label">Stream Status</span><span class="status-value" id="statusStream"><span class="status-dot inactive"></span> Inactive</span></div>
+                    <div class="status-row"><span class="status-label">Camera</span><span class="status-value" id="statusCamera"><span class="status-dot inactive"></span> Off</span></div>
+                    <div class="status-row"><span class="status-label">Motion Detection</span><span class="status-value" id="statusMotion"><span class="status-dot inactive"></span> Disabled</span></div>
+                    <div class="status-row"><span class="status-label">Recording</span><span class="status-value" id="statusRecording"><span class="status-dot inactive"></span> Standby</span></div>
+                    <div class="status-row"><span class="status-label">Connected Clients</span><span class="status-value blue" id="statusClients">0</span></div>
+                    <div class="status-row"><span class="status-label">IP Address</span><span class="status-value blue" id="statusIP">Detecting…</span></div>
+                    <div class="status-row"><span class="status-label">Port</span><span class="status-value blue" id="statusPort">8080</span></div>
+                    <div class="status-row"><span class="status-label">Remote Access</span><span class="status-value" id="statusRemote"><span class="status-dot inactive"></span> Not Configured</span></div>
+                </div>
+
+                <!-- Streaming -->
+                <div class="neon-panel">
+                    <div class="neon-panel-header"><span class="icon">📡</span><h3>Streaming</h3></div>
+                    <button id="btnStartCamera" class="btn btn-primary" style="width:100%;margin-bottom:10px;" onclick="MotorCam.Server.startCamera()">▶ Start Camera</button>
+                    <button id="btnStopCamera" class="btn btn-danger hidden" style="width:100%;" onclick="MotorCam.Server.stopCamera()">⏹ Stop Camera</button>
+                </div>
+
+                <!-- Network -->
+                <div class="neon-panel">
+                    <div class="neon-panel-header"><span class="icon">🌐</span><h3>Network</h3></div>
+                    <p class="panel-hint">To monitor from another device on the same Wi-Fi, enter this address in Client Mode:</p>
+                    <div class="address-display">
+                        <span id="localAddressText">Detecting…</span>
+                        <button class="copy-btn" onclick="MotorCam.copyAddress()">📋 Copy</button>
+                    </div>
+                </div>
+
+                <!-- Motion Detection -->
+                <div class="neon-panel">
+                    <div class="neon-panel-header"><span class="icon">🔍</span><h3>Motion Detection</h3></div>
+                    <label class="checkbox-wrapper">
+                        <input type="checkbox" id="chkMotion" onchange="MotorCam.Server.toggleMotionDetection(this.checked)">
+                        <span>Enable Motion Detection</span>
+                    </label>
+                    <div id="motionSettings" class="hidden" style="margin-top:12px;">
+                        <div class="slider-row">
+                            <span class="status-label">Sensitivity</span>
+                            <span class="status-value blue" id="sensitivityValue">50</span>
+                        </div>
+                        <input type="range" id="sensitivitySlider" min="1" max="100" value="50"
+                            oninput="MotorCam.Server.setSensitivity(this.value)">
+                        <div class="slider-labels">
+                            <span>High (detects small)</span><span>Low (ignores minor)</span>
+                        </div>
+                        <div class="status-row" style="margin-top:12px;">
+                            <span class="status-label">Motion Level</span>
+                            <span class="status-value" id="motionLevel">0%</span>
+                        </div>
+                        <div class="progress-bar" style="margin-top:8px;">
+                            <div class="progress-bar-fill" id="motionBar" style="width:0%;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recording -->
+                <div class="neon-panel">
+                    <div class="neon-panel-header"><span class="icon">⏺</span><h3>Recording</h3></div>
+                    <div class="status-row"><span class="status-label">Status</span><span class="status-value" id="recStatus">Standby</span></div>
+                    <div class="status-row"><span class="status-label">Clip Number</span><span class="status-value blue" id="recClipNum">—</span></div>
+                    <div class="status-row"><span class="status-label">Timer</span><span class="status-value blue" id="recCountdown">—</span></div>
+                    <div style="margin-top:10px;">
+                        <div class="progress-bar"><div class="progress-bar-fill" id="recProgress" style="width:0%;"></div></div>
+                    </div>
+                </div>
+
+                <!-- Storage -->
+                <div class="neon-panel">
+                    <div class="neon-panel-header"><span class="icon">💾</span><h3>Storage</h3></div>
+                    <div class="status-row"><span class="status-label">Platform</span><span class="status-value blue" id="storagePlatform">Detecting…</span></div>
+                    <div class="status-row"><span class="status-label">Clips Saved</span><span class="status-value green" id="storageClips">0</span></div>
+                    <div class="status-row"><span class="status-label">Save Location</span><span class="status-value" id="storageLocation" style="font-size:0.8rem;word-break:break-all;">Downloads</span></div>
+                </div>
+
+                <!-- Remote Access -->
+                <div class="neon-panel">
+                    <div class="neon-panel-header"><span class="icon">🔒</span><h3>Remote Access</h3></div>
+
+                    <div class="collapse-header" onclick="toggleCollapse(this)">
+                        <h4 class="collapse-title">Option 1 — Port Forwarding</h4><span class="arrow">▼</span>
+                    </div>
+                    <div class="collapse-body">
+                        <div class="instructions">
+                            <h4>Step 1: Assign a Static IP</h4>
+                            <ol><li>Open router admin panel (usually <code>192.168.1.1</code>)</li><li>Find DHCP Reservation and assign a fixed IP, e.g. <code>192.168.1.100</code></li></ol>
+                            <h4>Step 2: Forward the Port</h4>
+                            <pre>Service: MotorCam  External: 8080
+Internal: 8080  IP: 192.168.1.100  Protocol: TCP</pre>
+                            <h4>Step 3: Find Your Public IP</h4>
+                            <p>Visit <code>https://whatismyip.com</code> from the server device</p>
+                            <h4>Step 4: Connect</h4>
+                            <pre>IP: 203.45.67.89    Port: 8080</pre>
+                        </div>
+                    </div>
+
+                    <div class="collapse-header" onclick="toggleCollapse(this)" style="margin-top:8px;">
+                        <h4 class="collapse-title">Option 2 — Ngrok</h4><span class="arrow">▼</span>
+                    </div>
+                    <div class="collapse-body">
+                        <div class="instructions">
+                            <h4>Step 1: Install & Authenticate</h4>
+                            <pre>ngrok config add-authtoken YOUR_AUTH_TOKEN</pre>
+                            <h4>Step 2: Start Tunnel</h4>
+                            <pre>ngrok http 8080</pre>
+                            <h4>Step 3: Use the URL</h4>
+                            <p>Ngrok gives you a public HTTPS URL to use in Client Mode.</p>
+                        </div>
+                    </div>
+
+                    <div class="collapse-header" onclick="toggleCollapse(this)" style="margin-top:8px;">
+                        <h4 class="collapse-title">Option 3 — Cloudflare Tunnel</h4><span class="arrow">▼</span>
+                    </div>
+                    <div class="collapse-body">
+                        <div class="instructions">
+                            <h4>Install & Run</h4>
+                            <pre>cloudflared tunnel --url http://localhost:8080</pre>
+                            <p>Cloudflare gives you a public HTTPS URL instantly.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Connected Clients -->
+                <div class="neon-panel">
+                    <div class="neon-panel-header"><span class="icon">👥</span><h3>Connected Clients</h3></div>
+                    <div id="clientList"><p class="empty-hint">No clients connected</p></div>
+                </div>
+
+            </div><!-- /server-grid -->
+        </div>
+    </div><!-- /server-screen -->
+
+    <!-- CLIENT SCREEN -->
+    <div id="client-screen">
+        <div class="dashboard-header">
+            <button class="back-btn" onclick="MotorCam.goHome()">◀ Back</button>
+            <h2>Motor-Cam</h2>
+            <span class="mode-badge client">Client</span>
+        </div>
+        <div class="dashboard-body">
+
+            <div class="neon-panel">
+                <div class="neon-panel-header"><span class="icon">🔗</span><h3>Connection</h3></div>
+                <div class="ip-row">
+                    <div>
+                        <label class="field-label">IP Address</label>
+                        <input type="text" id="clientIP" class="input-field" placeholder="192.168.1.100">
+                    </div>
+                    <div class="ip-colon">:</div>
+                    <div>
+                        <label class="field-label">Port</label>
+                        <input type="text" id="clientPort" class="input-field" placeholder="8080" value="8080">
+                    </div>
+                </div>
+                <div class="connect-btns">
+                    <button id="btnConnect" class="btn btn-success" onclick="MotorCam.Client.connect()">🔗 Connect</button>
+                    <button id="btnDisconnect" class="btn btn-danger hidden" onclick="MotorCam.Client.disconnect()">✖ Disconnect</button>
+                </div>
+            </div>
+
+            <div class="neon-panel">
+                <div class="neon-panel-header"><span class="icon">📶</span><h3>Connection Status</h3></div>
+                <div class="status-row"><span class="status-label">Status</span><span class="status-value" id="clientStatus"><span class="status-dot inactive"></span> Disconnected</span></div>
+                <div class="status-row"><span class="status-label">Latency</span><span class="status-value blue" id="clientLatency">—</span></div>
+                <div class="status-row"><span class="status-label">Server</span><span class="status-value blue" id="clientServer">—</span></div>
+            </div>
+
+            <div class="neon-panel client-video-area">
+                <div class="neon-panel-header"><span class="icon">📺</span><h3>Live Feed</h3></div>
+                <div class="video-container" id="clientVideoContainer">
+                    <div class="timestamp-overlay" id="clientTimestamp">Waiting for feed…</div>
+                    <video id="clientVideo" autoplay playsinline></video>
+                    <img id="clientImage" style="display:none;" alt="Live feed">
+                </div>
+                <div class="client-controls">
+                    <button class="btn btn-outline btn-sm" onclick="MotorCam.Client.toggleFullscreen()">⛶ Fullscreen</button>
+                    <button class="btn btn-outline btn-sm" onclick="MotorCam.Client.toggleMute()" id="btnMute">🔇 Muted</button>
+                    <button class="btn btn-outline btn-sm" onclick="MotorCam.Client.snapshot()">📸 Snapshot</button>
+                    <button class="btn btn-outline btn-sm" onclick="MotorCam.Client.togglePiP()">🖼 PiP</button>
+                </div>
+            </div>
+
+        </div>
+    </div><!-- /client-screen -->
+
+    <script src="app.js"></script>
+</body>
+</html>
